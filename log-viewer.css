@@ -1,0 +1,72 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Anonymous+Pro&display=swap');
+
+#graph {
+	position:absolute;
+	left:0vw;
+	right:0;
+	top:0vh;
+	bottom:0;
+}
+
+#output {
+	background:#000;
+	color:#fff;
+	white-space:break-spaces;
+	word-break:break-all;
+	font-family: 'Anonymous Pro', monospace;
+	font-size:16px;
+	line-height:16px;
+	padding: 5px;
+
+	position:absolute;
+	left:33vw;
+	right:0;
+	top:40vh;
+	bottom:0;
+	overflow:scroll;
+}
+
+#output .broken {
+	color:#f00;
+}
+#output .broken:before {
+	content:'?';
+}
+
+/* ANSI colors as per https://en.wikipedia.org/wiki/ANSI_escape_code */
+.fg30 { color:#000; }
+.fg31 { color:#a00; }
+.fg32 { color:#0a0; }
+.fg33 { color:#a50; }
+.fg34 { color:#00a; }
+.fg35 { color:#a0a; }
+.fg36 { color:#0aa; }
+.fg37 { color:#ccc; } /* adjusted for default being more readable */
+
+.fg90 { color:#666; } /* adjusted for slightly more pop */
+.fg91 { color:#f55; }
+.fg92 { color:#5f5; }
+.fg93 { color:#ff5; }
+.fg94 { color:#55f; }
+.fg95 { color:#f5f; }
+.fg96 { color:#5ff; }
+.fg97 { color:#fff; }
+
+.bg40 { background:#000; }
+.bg41 { background:#a00; }
+.bg42 { background:#0a0; }
+.bg43 { background:#a50; }
+.bg44 { background:#00a; }
+.bg45 { background:#a0a; }
+.bg46 { background:#0aa; }
+.bg47 { background:#aaa; }
+
+.bg100 { background:#555; }
+.bg101 { background:#f55; }
+.bg102 { background:#5f5; }
+.bg103 { background:#ff5; }
+.bg104 { background:#55f; }
+.bg105 { background:#f5f; }
+.bg106 { background:#5ff; }
+.bg107 { background:#fff; }
