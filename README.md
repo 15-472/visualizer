@@ -16,14 +16,24 @@
     - Then run `http-server` in the directory with `log-viewer.html`
     - You will need to make sure `npm_global` (or something similar) is in your `$PATH` to run it.
   - When making changes to local files, you may need to empty cache and hard reload in order to get the updated changes. See [this](https://stackoverflow.com/questions/25723801/file-not-updating-on-localhost) for more information.
+- Hyperparameters (at the top of `log-viewer.mjs`):
+  - `colorList`
+    - List of colors to color each metric being measured in the visualizer
+  - `detail`
+    - Number of decimals to output for histogram statistics
+  - `binCount`
+    - Number of bins to use for histograms
+  - `file`
+    - Log file to load into the visualizer
+
 
 ### TODO:
 These will be added soon in the next few days.
-- Display all histograms separately
 - Add BEGIN - END and MARK functionality
+- Add different units for different timestamp graphs
+  - Add units scaling
 - Manually set focus view domain
-- Highlight line code
-- Add units scaling
 - Add bin count flexibility
+- Bug: One of the first initial clicks will zoom out to all timestamps, but functions normally afterwards
 
 

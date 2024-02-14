@@ -1,18 +1,24 @@
-// name of histogram to display
-var selected = new Set();
-// https://github.com/d3/d3-zoom/issues/222
-var brushzoom;
+// PARAMETERS THAT CAN BE CHANGED:
 // global colors for graphs
-// if color_list is exhausted, it will repeat colors in an indeterminate order of the line charts vs the histograms
-var color_list = ["red", "green", "blue", "yellow", 
+// if colorList is exhausted, it will repeat colors in an indeterminate order of the line charts vs the histograms
+var colorList = ["red", "green", "blue", "yellow", 
 				  "black", "cyan", "gray", "orange", 
 				  "purple", "pink", "goldenrod", "brown", 
 				  "coral", "chocolate"];
 var colors;
-// precision for stats to be displayed
+// precision for histogram stats to be displayed
 var detail = 3;
 // number of bins for histogram
 var binCount = 20;
+// file to laod
+var file = 'example.log'
+
+
+// names of histograms to display
+var selected = new Set();
+var lastSelected = "";
+// https://github.com/d3/d3-zoom/issues/222
+var brushzoom;
 
 class Event {
 	// store everything as ms
@@ -20,6 +26,7 @@ class Event {
 		this.name = ""; // name of the event
 		this.timestamp = []; // x-axis
 		this.times = []; // y-axis
+		this.units = ""; // units for this event
 	}
 }
 
@@ -28,7 +35,7 @@ class Graph {
 	constructor(container) {
 		this.container = container;
 	}
-	reset(chunks, measurements) {
+	reset(chunks, measurements, output) {
 		// chunks should be in order of timestamps
 		var minTimeStamp = chunks[0].timestamp;
 		var maxTimeStamp = chunks[chunks.length - 1].timestamp;
@@ -37,7 +44,7 @@ class Graph {
 		// chunk will be in the following format:
 		//  [src][timestamp][data]
 		// We will need to check the first word in data for REPORT, BEGIN, END
-		//  REPORT will have a name and then a timing value (sort by timestamp)
+		//  REPORT will have a name and then a timing value (sorted by timestamp)
 		//  BEGIN will have a name
 		//  END will have a name and then a timing value
 
@@ -233,7 +240,7 @@ class Graph {
 		// assign random colors to each line among RGB
 		colors = d3.scaleOrdinal()
 			.domain(data.map(d => d[2]))
-			.range(color_list);
+			.range(colorList);
 		
 		// add data to the charts
 		for(const [key, value] of groups) {
@@ -327,7 +334,7 @@ class Graph {
 			context.select(".brush")
 				.call(brush.move, brushSelection);
 			contextBrush.attr("display", null)
-			measurements.display();
+			measurements.displayAll();
 			brushzoom = 0;
 		}
 		function focusMouseMove(event) {
@@ -344,7 +351,10 @@ class Graph {
 					selected.clear();
 					selected.add(k);
 				}
-				measurements.display();
+				lastSelected = k;
+				measurements.displayAll();
+				// give timestamp and name
+				output.highlight(x);
 			});
 
 			tooltip.attr("transform", `translate(${xFocus(x)},${yFocus(y)})`);
@@ -375,75 +385,37 @@ class Measurements {
 		// display the selected histogram
 		this.data = data;
 
-		var div = document.createElement("div");
-		div.id = "performance-measurements";
-		this.container.appendChild(div);
+		// div for all histograms
+		this.div = document.createElement("div");
+		this.div.id = "all-histograms";
+		this.container.appendChild(this.div);
 		let width = 450;
-		let height = 480;
-		div.style.width = width + "px";
-		div.style.height = height + "px";
-		div.style.overflow = "scroll";
-		height = 280
+		let height = 450;
+		this.div.style.width = width + "px";
+		this.div.style.height = height + "px";
+		this.div.style.overflow = "scroll";
 
-		// create the svg element
-		this.svg = d3.select("#performance-measurements")
-			.append("svg")
-			.attr("width", width)
-			.attr("height", height)
-			.attr("style", "overflow: scroll; font: 10px sans-serif;") // TODO: consider different font size
-		
-		// margins for both charts
-		this.margin = {top: 20, right: 20, bottom: 40, left: 60};
-		// width for both charts
+		// margins for histograms
+		this.margin = {top: 20, right: 20, bottom: 200, left: 60};
+		// width for histograms
 		this.chartWidth = width - this.margin.left - this.margin.right;
-		// heights for both charts
+		// heights for histograms
 		this.chartHeight = height - this.margin.top - this.margin.bottom;
-
-		// create histogram
-		this.svg = this.svg.append("svg")
-			.attr("width", width + this.margin.left + this.margin.right)
-			.attr("height", height + this.margin.top + this.margin.bottom)
-			.append("g")
-			.attr("style", "overflow: scroll; font: 10px sans-serif;") // TODO: consider different font size
-			.attr("transform", "translate(" + this.margin.left + "," + this.margin.top + ")");
-		
-		this.selected = document.createElement("select");
-		this.selected.id = "data-name";
-		// this.selected.multiple = true; // TODO: consider multiple
-		this.selected.size = 0;
-		this.selected.style.width = "40%";
-		this.selected.style.height = "20px";
-		this.selected.addEventListener("change", (event) => { this.stats(event.target.value); });
-		div.appendChild(this.selected);
-
-		this.statsDisplay = document.createElement("section")
-		this.statsDisplay.id = "stats";
-		this.statsDisplay.style.width = div.style.width;
-		this.statsDisplay.style.height = "160px";
-		this.statsDisplay.style.overflow = "scroll";
-		div.appendChild(this.statsDisplay);
 	}
 	update(data) {
 		this.data = data;
-		this.display();
+		this.displayAll();
 	}
-	removeOptions() {
-		// https://stackoverflow.com/questions/3364493/how-do-i-clear-all-options-in-a-dropdown-box
-		var i, L = this.selected.options.length - 1;
-		for(i = L; i >= 0; i--) {
-		   this.selected.remove(i);
-		}
-	}
-	stats(name) {
-		const statsDisplay = this.statsDisplay;
-		this.statsDisplay.innerHTML = "";
+	stats(name, statsDisplay) {
+		statsDisplay.innerHTML = "";
+
 		function addSpan(text) {
 			var span = document.createElement("span");
 			span.innerHTML = text;
 			span.style.fontSize = "18px";
 			statsDisplay.appendChild(span);
 		}
-		addSpan("<span style =\"color: " + colors(name) + "\"> Name: </span>" + name + "<br>");
+		addSpan("Name: " + name + "<br>");
 		// stats:
 		// count in time span
 		addSpan("Count: " + this.data.get(name).length + "<br>");
@@ -467,31 +439,51 @@ class Measurements {
 			addSpan("Variance: " + variance.toFixed(detail) + " ms<br>");
 		}
 	}
-	display() {
-		// source code for inspiration: https://d3-graph-gallery.com/graph/histogram_double.html
-		// clear the svg
-		this.svg.selectAll("*").remove();
-		this.removeOptions();
-
+	displayOne(key) {
 		// selected contains keys to look into this.data
 		// fill data with keys of selected
-		var data = [];
-		for(const key of selected) {
-			data.push.apply(data, this.data.get(key));
-			var option = document.createElement("option");
-			option.text = key;
-			option.value = key;
-			this.selected.add(option);
-		}
 		// if data is empty, display nothing
-		// if data is not empty, display the histogram
-		if(data.length == 0) {
-			// clear stats
-			this.statsDisplay.innerHTML = "";
+		var keys = [...this.data.keys()];
+		if(!(keys.includes(key))) {
 			return;
-		}
+		} 
+		var data = this.data.get(key);
+		
+		// container for one histogram
+		var div = document.createElement("div");
+		div.id = key;
+		this.div.appendChild(div);
+		let width = 450;
+		let height = 480;
+		div.style.width = width + "px";
+		div.style.height = height + "px";
+		div.style.overflow = "scroll";
+		height = 280
+
+		// create the svg element
+		var svg = d3.select(div)
+			.append("svg")
+			.attr("width", width)
+			.attr("height", height)
+			.attr("style", "overflow: scroll; font: 10px sans-serif;") // TODO: consider different font size
+		// create histogram
+		svg = svg.append("svg")
+			.attr("width", width + this.margin.left + this.margin.right)
+			.attr("height", height + this.margin.top + this.margin.bottom)
+			.append("g")
+			.attr("style", "overflow: scroll; font: 10px sans-serif;") // TODO: consider different font size
+			.attr("transform", "translate(" + this.margin.left + "," + this.margin.top + ")");
+
+		var statsDisplay = document.createElement("section")
+		statsDisplay.id = "stats-" + key;
+		statsDisplay.style.width = div.style.width;
+		statsDisplay.style.height = "160px";
+		statsDisplay.style.overflow = "scroll";
+		div.appendChild(statsDisplay);
+
+		// if data is not empty, display the histogram
 		// display stats of first key
-		this.stats(data[0][2]);
+		this.stats(key, statsDisplay);
 
 		const groups = d3.rollup(data, v => Object.assign(v, {z: v[0][2]}), d => d[2]);
 
@@ -501,7 +493,7 @@ class Measurements {
 			.range([0, this.chartWidth]);
 		// add x axes to charts
 		var xAxis = d3.axisBottom(x);
-		this.svg.append("g")
+		svg.append("g")
 			.attr("transform", "translate(0," + this.chartHeight + ")")
 			.call(xAxis);
 
@@ -521,13 +513,13 @@ class Measurements {
 			.domain([0, d3.max(bins, (d) => d3.max(d, (d) => d.length)) * 1.1])
 			.range([this.chartHeight, 0]);
 		var yAxis = d3.axisLeft(y);
-		this.svg.append("g")
+		svg.append("g")
 			.attr("transform", "translate(0,0)")
 			.call(yAxis);
 
 		var chartHeight = this.chartHeight;
 		for(const bin of bins) {
-			this.svg.selectAll("bar")
+			svg.selectAll("bar")
 				.data(bin)
 				.join("rect")
 				.attr("class", "bar")
@@ -544,6 +536,20 @@ class Measurements {
 				.style("opacity", 0.5);
 		}
 	}
+	displayAll() {
+		// source code for inspiration: https://d3-graph-gallery.com/graph/histogram_double.html
+		// clear previous contents
+		this.div.innerHTML = "";
+
+		// iterate over selected
+		for(const key of selected) {
+			this.displayOne(key);
+		}
+		var scroll = document.getElementById(lastSelected);
+		if(scroll !== null) {
+			scroll.scrollIntoView();
+		}
+	}
 }
 
 //log with timestamps and some ANSI support:
@@ -554,7 +560,6 @@ class Output {
 	reset(chunks) {
 		//clear contents:
 		this.container.innerHTML = "";
-		this.graphMessages = [];
 
 		//make chunks into <span>text</span><span>text</span>...
 		// - split spans on timestamp changes
@@ -571,7 +576,6 @@ class Output {
 
 		function message(text, tsBegin, tsEnd, cls) {
 			let html = "";
-			// this.graphMessages.push({text, tsBegin, tsEnd});
 			for (let c of text) {
 				if (c === "&") html += "&amp;";
 				else if (c === "<") html += "&lt;";
@@ -591,8 +595,8 @@ class Output {
 		const utf8_decoder = {
 			message:null,
 			multibyte:null,
-			beginTs:null,
-			endTs:null,
+			tsBegin:null,
+			tsEnd:null,
 			emit_message:function() {
 				if (this.message === null) return;
 				message(decoder.decode(new Uint8Array(this.message)), this.tsBegin, this.tsEnd);
@@ -605,18 +609,18 @@ class Output {
 				message(hex, this.tsBegin, this.tsEnd, "broken");
 			},
 			timestamp:function(ts){
-				if (ts === this.beginTs) return; //same timestamp, nothing to do.
+				if (ts === this.tsBegin) return; //same timestamp, nothing to do.
 
 				//timestamp changed, time to decode the message so far:
 				if (this.message !== null) this.emit_message();
 
-				//if not in the middle of a multibyte sequence, adjust beginTs:
-				if (this.multibyte === null) this.beginTs = ts;
-				//always adjust endTs:
-				this.endTs = ts;
+				//if not in the middle of a multibyte sequence, adjust tsBegin:
+				if (this.multibyte === null) this.tsBegin = ts;
+				//always adjust tsEnd:
+				this.tsEnd = ts;
 			},
 			parse:function(byte){
-				console.assert(this.beginTs === this.endTs || (this.message === null && this.multibyte !== null), "Should never have pending message when spanning a timestamp range.");
+				console.assert(this.tsBegin === this.tsEnd || (this.message === null && this.multibyte !== null), "Should never have pending message when spanning a timestamp range.");
 
 				//special handling if in a multibyte codepoint:
 				if (this.multibyte !== null) {
@@ -628,9 +632,9 @@ class Output {
 							this.message.push(...this.multibyte);
 							this.multibyte = null;
 							//if spanning a timestamp, emit immediately:
-							if (this.beginTs !== this.endTs) {
+							if (this.tsBegin !== this.tsEnd) {
 								this.emit_message();
-								this.beginTs = this.endTs;
+								this.tsBegin = this.tsEnd;
 							}
 						}
 						return; //byte handled so return
@@ -638,12 +642,12 @@ class Output {
 						if (this.message !== null) this.emit_message(); //flush any message before broken part
 						this.emit_broken(this.multibyte); //dump multibyte so far
 						this.multibyte = null;
-						this.beginTs = this.endTs;
+						this.tsBegin = this.tsEnd;
 						//NOTE: byte was *not* handled as part of multibyte, so fall through to below
 					}
 				}
 
-				console.assert(this.beginTs === this.endTs, "in non-multibyte operation, should never be spanning multiple timestamps");
+				console.assert(this.tsBegin === this.tsEnd, "in non-multibyte operation, should never be spanning multiple timestamps");
 
 				//not in a multibyte codepoint:
 				if ((byte & 0x80) === 0x00) { //0xxxxxxx == one-byte codepoint
@@ -675,11 +679,11 @@ class Output {
 		const ansi_decoder = {
 			step:0, //0 => ESC, 1 => [, 2 => [0x30-0x3F]*, 3 => [0x20-0x2f]*, 4 => [0x40-0x7E]
 			seq:[],
-			beginTs:null,
-			endTs:null,
+			tsBegin:null,
+			tsEnd:null,
 			timestamp:function(ts){
-				if (this.seq.length === 0) this.beginTs = ts;
-				this.endTs = ts;
+				if (this.seq.length === 0) this.tsBegin = ts;
+				this.tsEnd = ts;
 
 				utf8_decoder.timestamp(ts);
 			},
@@ -780,6 +784,24 @@ class Output {
 		}
 		ansi_decoder.flush();
 	}
+	highlight(timestamp) {
+		for(const child of this.container.children) {
+			if(child.tsBegin <= timestamp) {
+				// child.classList should be length 2, with the FG and the BG
+				child.classList.remove('fg90');
+				if(child.classList.length == 1) {
+					// the original FG is fg90, so add it back
+					child.classList.add('fg90');
+				}
+				if(child.tsBegin == timestamp) {
+					child.scrollIntoView();
+				}
+			} else {
+				// child.classList should be length 3, with the old FG, the BG and with FG90
+				child.classList.add('fg90');
+			}
+		}
+	}
 }
 
 class LogViewer {
@@ -815,7 +837,7 @@ class LogViewer {
 		console.log(`Found ${this.chunks.length} chunks.`);
 
 		this.OUTPUT.reset(this.chunks);
-		this.GRAPH.reset(this.chunks, this.MEASUREMENTS);
+		this.GRAPH.reset(this.chunks, this.MEASUREMENTS, this.OUTPUT);
 	}
 }
 
@@ -823,7 +845,7 @@ const VIEWER = window.VIEWER = new LogViewer(document);
 
 async function init() {
 	console.log("Loading from example.log...");
-	const response = await fetch('example.log');
+	const response = await fetch(file);
 	const body = await response.arrayBuffer();
 	console.log(` done (${body.byteLength} bytes).`);
 	VIEWER.load(body);
